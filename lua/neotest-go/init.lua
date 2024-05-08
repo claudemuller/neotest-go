@@ -216,20 +216,34 @@ function adapter.prepare_results(tree, lines, go_root, go_module)
   local no_results = vim.tbl_isempty(tests)
   local empty_result_fname
   local file_id
+
   empty_result_fname = async.fn.tempname()
   fn.writefile(log, empty_result_fname)
+
   for _, node in tree:iter_nodes() do
     local value = node:data()
+
     if no_results then
       results[value.id] = {
-        status = test_statuses.fail,
+        status = test_statuses.skip,
         output = empty_result_fname,
       }
       break
     end
+
     if value.type == "file" then
+      local s = test_statuses.pass
+
+      local value_id = value.id:gsub('%"', ""):gsub(" ", "_")
+      local normalized_id = utils.normalize_id(value_id, go_root, go_module)
+      local test_result = tests[normalized_id]
+      print(dump(test_result))
+      -- if test_result.status == test_statuses.pass then
+      --   s = test_statuses.skip
+      -- end
+
       results[value.id] = {
-        status = test_statuses.pass,
+        status = s,
         output = empty_result_fname,
       }
       file_id = value.id
@@ -238,25 +252,30 @@ function adapter.prepare_results(tree, lines, go_root, go_module)
       local value_id = value.id:gsub('%"', ""):gsub(" ", "_")
       local normalized_id = utils.normalize_id(value_id, go_root, go_module)
       local test_result = tests[normalized_id]
+
       -- file level node
       if test_result then
         local fname = async.fn.tempname()
         fn.writefile(test_result.output, fname)
+
         results[value.id] = {
           status = test_result.status,
           short = table.concat(test_result.output, ""),
           output = fname,
         }
+
         local errors = utils.get_errors_from_test(test_result, utils.get_filename_from_id(value.id))
         if errors then
           results[value.id].errors = errors
         end
+
         if test_result.status == test_statuses.fail and file_id then
           results[file_id].status = test_statuses.fail
         end
       end
     end
   end
+
   return results
 end
 

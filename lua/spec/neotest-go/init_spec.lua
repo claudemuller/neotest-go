@@ -5,6 +5,21 @@ local assert = require("luassert")
 local say = require("say")
 local test_statuses = require("neotest-go.test_status")
 
+dump = function(o)
+  if type(o) == "table" then
+    local s = "{ "
+    for k, v in pairs(o) do
+      if type(k) ~= "number" then
+        k = '"' .. k .. '"'
+      end
+      s = s .. "[" .. k .. "] = " .. dump(v) .. ","
+    end
+    return s .. "} "
+  else
+    return tostring(o)
+  end
+end
+
 local function create_tree(positions)
   return Tree.from_list(positions, function(pos)
     return pos.id
@@ -348,6 +363,8 @@ describe("prepare_results", function()
     local test_cases = {}
     test_cases["cases_test.go"] = { status = test_statuses.fail }
     test_cases["main_test.go"] = { status = test_statuses.pass }
+    test_cases["skip/skip_test.go"] = { status = test_statuses.skip }
+
     for test_name, test_result in pairs(test_cases) do
       async.it(test_name, function()
         local test_file = tests_folder .. "/" .. test_name
@@ -374,8 +391,16 @@ describe("prepare_results", function()
         for s in result:gmatch("[^\r\n]+") do
           table.insert(lines, s)
         end
+
         local processed_results =
           plugin.prepare_results(positions, lines, tests_folder, "neotest_go")
+
+        for w in string.gmatch(test_name, "skip/skip_test.go") do
+          print("___\n")
+          print(dump(test_result))
+          print(dump(processed_results))
+          print("\n___\n")
+        end
 
         assert.equals(test_result.status, processed_results[test_file].status)
       end)
